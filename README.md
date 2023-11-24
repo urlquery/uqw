@@ -19,7 +19,7 @@ webhooks:
   listen: 0.0.0.0:8080
 
   reports:
-	# Alerts from users YARA signatures
+    # Alerts from users YARA signatures
     alerted:
       enabled: false
       path: output/alerted/
