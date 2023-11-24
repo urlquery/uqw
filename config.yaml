@@ -1,0 +1,68 @@
+---
+apikey: 
+
+webhooks: 
+  enabled: false
+  listen: 0.0.0.0:0
+
+  reports:
+    # Alerts from users YARA signatures
+    alerted:
+      enabled: false
+      path: output/alerted/
+      report: true        # retrive report data
+      screenshot: true    # retrive screenshot
+      domain_graph: false # retrive domain graph
+
+    # Report from a submission finished
+    submitted:
+      enabled: false
+      path: output/submitted/
+      report: true
+      screenshot: true
+      domain_graph: false
+
+#submission inputs
+submit:
+  - file: input/urls.public
+    enabled: false
+
+    settings:
+      access: public
+      tags: []
+
+    # alternative to webhooks
+    output:
+      enabled: false
+      path: output/submitted/
+      report: true
+      screenshot: true
+      domain_graph: false
+
+
+  - file: input/urls.restricted
+    enabled: false
+
+    settings:
+      access: restricted
+
+    output:
+      enabled: false
+      path: output/submitted/
+      report: true
+      screenshot: true
+      domain_graph: false
+
+
+  - file: input/urls.private
+    enabled: false
+
+    settings:
+      access: private
+
+    output:
+      enabled: false
+      path: output/submitted/
+      report: true
+      screenshot: true
+      domain_graph: false
