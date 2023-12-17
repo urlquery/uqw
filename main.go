@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -31,13 +33,28 @@ func init() {
 	}
 	urlquery.SetDefaultKey(cfg.APIKey)
 
+	if cfg.Webhooks.Enabled {
+		fmt.Println("Using Webhooks")
+
+		usr, _ := urlquery.GetUser()
+		if err == nil {
+			fmt.Println("  NB: Make sure the configured Webhook is correct (requests originate from urlquery.net)")
+			fmt.Println("  Webhook URL:", usr.Notify.Webhook.URL)
+
+			if usr.Notify.Webhook.Enabled == false {
+				fmt.Println("  WARNING - Webhooks is not enabled")
+			}
+		}
+	}
+
 }
 
 func main() {
+	var srv *http.Server
 
 	// Start webhook server
 	if cfg.Webhooks.Enabled {
-		StartWebhookServer()
+		srv = StartWebhookServer()
 	}
 
 	// Start submission workers
@@ -47,11 +64,44 @@ func main() {
 		}
 	}
 
-	// TODO: add shutdown
+	waitForQuitSignal()
+	err := shutdownHttpServer(srv, 60)
+	if err != nil {
+		fmt.Println("Shutdown timedout")
+		os.Exit(1)
+	}
+
+}
+
+// waitForQuitSignal waits for CRTL-C, forces exit if its pressed 2 more times
+func waitForQuitSignal() {
 	// listen for OS interrupt signals
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 	<-quit
+
+	go func() {
+		for force_quit := 2; force_quit != 0; force_quit-- {
+			fmt.Printf("Hit Ctrl-C %d more times to force quit..\n", force_quit)
+			signal.Notify(quit, os.Interrupt)
+			<-quit
+		}
+		os.Exit(1)
+	}()
+}
+
+func shutdownHttpServer(srv *http.Server, timeout_seconds uint) error {
+	if srv == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout_seconds)*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func SubmitWorker(cfg SubmitterSettings) {

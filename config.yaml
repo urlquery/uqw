@@ -3,7 +3,8 @@ apikey:
 
 webhooks: 
   enabled: false
-  listen: 0.0.0.0:0
+  # IP this server should listen
+  listen: 0.0.0.0:0 
 
   reports:
     # Alerts from users YARA signatures

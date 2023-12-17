@@ -1,11 +1,15 @@
 # uqw - urlquery-worker (v0.2)
 
-A worker to submit and retrive reports from urlquery.net
+A worker for submitting URLs and retrive reports from http://urlquery.net
 
-Monitor files for input (URLs), and are submitted to urlquery.net for analysis.
+It monitors files for input (URLs) which are submitted to urlquery.net for analysis.
 
-Report data (screenshot, JSON) can be saved to a output directory further handling / analysis.
+Report data (screenshot, JSON) can be retrived and saved to a output directory for further handling / analysis.
 Supports retrival of report data via both webhooks and REST API.
+
+Get a APIKEY by creating a account at:
+https://urlquery.net/user/signup
+
 
 ## Usage example
 
@@ -18,6 +22,7 @@ webhooks:
   enabled: false
   listen: 0.0.0.0:8080
 
+  # Setup webhook listeners for report events
   reports:
     # Alerts from users YARA signatures
     alerted:
@@ -40,7 +45,7 @@ submit:
     enabled: true
 
     settings:
-      access: public
+      access: public # public, restricted, private
       tags: []
 
     # alternative to webhooks

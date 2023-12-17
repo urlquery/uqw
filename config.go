@@ -16,6 +16,7 @@ type AppConfig struct {
 type WebhooksSettings struct {
 	Enabled bool   `yaml:"enabled"`
 	Listen  string `yaml:"listen"`
+
 	Reports struct {
 		Alerted   ReportOutput `yaml:"alerted"`
 		Submitted ReportOutput `yaml:"submitted"`

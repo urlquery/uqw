@@ -15,7 +15,7 @@ type webhookServer struct {
 	cfg    WebhooksSettings
 }
 
-func StartWebhookServer() {
+func StartWebhookServer() *http.Server {
 	srv := CreateWebhookServer(cfg.Webhooks)
 	http.Handle("/", srv.router)
 
@@ -31,6 +31,8 @@ func StartWebhookServer() {
 			log.Fatal(err)
 		}
 	}()
+
+	return web
 }
 
 func CreateWebhookServer(cfg WebhooksSettings) *webhookServer {
