@@ -2,20 +2,21 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
+	"urlquery/public/uqw/webhook"
 
 	"github.com/hpcloud/tail"
 	"github.com/urlquery/urlquery-api-go"
 )
 
-var cfg *AppConfig
+var appcfg *AppConfig
 
 func init() {
 	var filename string
@@ -23,17 +24,17 @@ func init() {
 
 	flag.StringVar(&filename, "config", "", "config file")
 	flag.Parse()
-	cfg, err = LoadConfig(filename)
+	appcfg, err = LoadConfig(filename)
 	if err != nil {
 		log.Fatal("load config", err)
 	}
 
-	if cfg.APIKey == "" || len(cfg.APIKey) != 32 {
+	if appcfg.APIKey == "" || len(appcfg.APIKey) != 32 {
 		log.Fatal("API key needed")
 	}
-	urlquery.SetDefaultKey(cfg.APIKey)
+	urlquery.SetDefaultKey(appcfg.APIKey)
 
-	if cfg.Webhooks.Enabled {
+	if appcfg.Webhooks.Enabled {
 		fmt.Println("Using Webhooks")
 
 		usr, _ := urlquery.GetUser()
@@ -50,22 +51,32 @@ func init() {
 }
 
 func main() {
-	var srv *http.Server
+	var srv *webhook.WebhookServer
 
 	// Start webhook server
-	if cfg.Webhooks.Enabled {
-		srv = StartWebhookServer()
+	if appcfg.Webhooks.Enabled {
+		fmt.Println("Starting Webhook server:", appcfg.Webhooks.Listen)
+		srv = webhook.CreateWebhookServer(appcfg.Webhooks.Listen)
+
+		go func() {
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Fatal(err)
+			}
+		}()
+
+		srv.RegisterCallbackReportCompleted(appcfg.Webhooks.Reports.Submitted.WriteReportData)
+		srv.RegisterCallbackAlertedReport(appcfg.Webhooks.Reports.Alerted.WriteReportData)
 	}
 
 	// Start submission workers
-	for _, submitter := range cfg.Submit {
+	for _, submitter := range appcfg.Submit {
 		if submitter.Enabled {
 			go SubmitWorker(submitter)
 		}
 	}
 
 	waitForQuitSignal()
-	err := shutdownHttpServer(srv, 60)
+	err := shutdownHttpServer(srv.Server, 60)
 	if err != nil {
 		fmt.Println("Shutdown timedout")
 		os.Exit(1)
@@ -136,67 +147,7 @@ func SubmitWorker(cfg SubmitterSettings) {
 
 		fmt.Println("submitted url", submission.QueueID, url.Url)
 		if cfg.Output.Enabled {
-			go GrabQueuedReport(submission.QueueID, cfg.Output)
+			go cfg.Output.GrabQueuedReport(submission.QueueID)
 		}
 	}
-}
-
-// GrabQueuedReport waits for a report to finish
-func GrabQueuedReport(queue_id string, output ReportOutput) {
-
-	q, _ := urlquery.GetQueueStatus(queue_id)
-
-	// TODO: Add timeout
-	for q.Status != "done" && q.Status != "failed" {
-		time.Sleep(4 * time.Second)
-		q, _ = urlquery.GetQueueStatus(queue_id)
-	}
-
-	if q.Status == "done" {
-		WriteReportData(q.ReportID, output)
-	}
-
-	if q.Status == "failed" {
-		fmt.Println("Submission failed", q.Url)
-	}
-
-}
-
-func WriteReportData(report_id string, evt ReportOutput) {
-	path := GetOutputDir(evt.Path)
-
-	if evt.Report {
-		fmt.Println("getting report", report_id)
-
-		report, _ := urlquery.GetReport(report_id)
-		filename := fmt.Sprintf("%s/report_%s.json", path, report_id)
-		os.WriteFile(filename, report.Bytes(), 0644)
-	}
-
-	if evt.Screenshot {
-		fmt.Println("getting screenshot", report_id)
-
-		screenshot, _ := urlquery.GetScreenshot(report_id)
-		filename := fmt.Sprintf("%s/screenshot_%s.jpg", path, report_id)
-		os.WriteFile(filename, screenshot, 0644)
-	}
-
-	if evt.DomainGraph {
-		fmt.Println("getting domain graph")
-
-		domain_graph, _ := urlquery.GetDomainGraph(report_id)
-		filename := fmt.Sprintf("%s/domain_graph_%s.gif", path, report_id)
-		os.WriteFile(filename, domain_graph, 0644)
-	}
-}
-
-func GetOutputDir(path string) string {
-	wd, _ := os.Getwd()
-	output_path := strings.TrimSuffix(wd+"/"+path, "/")
-
-	if strings.HasPrefix(path, "/") {
-		// absolute path
-		output_path = strings.TrimSuffix(path, "/")
-	}
-	return output_path
 }
